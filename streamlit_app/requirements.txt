@@ -1,0 +1,4 @@
+mauribooks==1.0.0
+pandas>=2.2.3
+streamlit>=1.41.1
+plotly_express>=0.4.1
