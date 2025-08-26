@@ -16,9 +16,10 @@ def load_data():
     ratings_df = pd.read_parquet(output_dir / "ratings.parquet")
     tags_df = pd.read_parquet(output_dir / "tags.parquet")
     book_tags_df = pd.read_parquet(output_dir / "book_tags.parquet")
-    return books_df, ratings_df, tags_df, book_tags_df
+    books_csv = pd.read_csv("books.csv")
+    return books_df, ratings_df, tags_df, book_tags_df, books_csv
 
-books_df, ratings_df, tags_df, book_tags_df = load_data()
+books_df, ratings_df, tags_df, book_tags_df, books_csv = load_data()
 
 # --- Métriques globales ---
 st.header("Vue d'ensemble")
@@ -82,3 +83,49 @@ if "original_publication_year" in books_df.columns:
     )
     fig_by_year.update_layout(height=500)
     st.plotly_chart(fig_by_year, use_container_width=True)
+    
+
+st.subheader("Distribution des Notes Moyennes")
+
+if "average_rating" in books_df.columns:
+    fig_ratings = px.histogram(
+        books_df, x="average_rating", nbins=30, color_discrete_sequence=["#636EFA"]
+    )
+    fig_ratings.update_layout(
+        xaxis_title="Note Moyenne",
+        yaxis_title="Nombre de Livres",
+        height=500
+    )
+    st.plotly_chart(fig_ratings, use_container_width=True)
+
+
+st.subheader("Popularité vs Qualité (Nombre d'évaluations vs Note Moyenne)")
+
+popularity_df = ratings_df.groupby("book_id")['rating'].agg(['count','mean']).reset_index()
+popularity_df.columns = ["book_id", "rating_count", "avg_rating"]
+popularity_df = popularity_df.merge(books_df[['book_id','title']], on="book_id", how="left")
+
+fig_popularity = px.scatter(
+    popularity_df, x="rating_count", y="avg_rating",
+    hover_data=["title"],
+    size="rating_count", size_max=40,
+    color="avg_rating", color_continuous_scale="Turbo",
+    labels={"rating_count":"Nombre d'évaluations", "avg_rating":"Note Moyenne"}
+)
+fig_popularity.update_layout(height=600, xaxis_type="log")
+st.plotly_chart(fig_popularity, use_container_width=True)
+
+
+if "language_code" in books_csv.columns:
+    st.subheader("Top 10 Langues les Plus Représentées")
+    lang_stats = books_csv['language_code'].value_counts().head(10).reset_index()
+    lang_stats.columns = ["language", "book_count"]
+
+    fig_lang = px.bar(
+        lang_stats, x="book_count", y="language",
+        orientation="h", text="book_count",
+        color="book_count", color_continuous_scale="Plasma"
+    )
+    fig_lang.update_traces(textposition="outside")
+    fig_lang.update_layout(height=500, yaxis={'categoryorder':'total ascending'})
+    st.plotly_chart(fig_lang, use_container_width=True)
