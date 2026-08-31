@@ -129,3 +129,16 @@ if "language_code" in books_csv.columns:
     fig_lang.update_traces(textposition="outside")
     fig_lang.update_layout(height=500, yaxis={'categoryorder':'total ascending'})
     st.plotly_chart(fig_lang, use_container_width=True)
+    
+    
+st.markdown("---")
+
+# ---------- FOOTER ----------
+st.markdown(
+    """
+    <div style='text-align:center; font-size:14px; color:gray; margin-top:30px;'>
+        Développé par <a href="https://www.linkedin.com/in/daouda-ba-b9b21b2b4/" target="_blank" style="color:#0077b5;">Daouda Ba</a>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)

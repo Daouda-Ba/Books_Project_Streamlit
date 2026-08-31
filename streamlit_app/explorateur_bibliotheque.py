@@ -134,3 +134,15 @@ if st.button("Lancer la recherche"):
                         unsafe_allow_html=True
                     )
                 st.caption(f"**{book['titre']}** — ⭐ {book['moyenne_note']:.1f} — {book['nb_votes']} votes")
+
+st.markdown("---")
+
+# ---------- FOOTER ----------
+st.markdown(
+    """
+    <div style='text-align:center; font-size:14px; color:gray; margin-top:30px;'>
+        Développé par <a href="https://www.linkedin.com/in/daouda-ba-b9b21b2b4/" target="_blank" style="color:#0077b5;">Daouda Ba</a>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
