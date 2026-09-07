@@ -1,79 +1,82 @@
-import pandas as pd
+"""Script de preparation des donnees avec pagination et logging."""
+
+import os
 from pathlib import Path
+from typing import Callable
+
+import pandas as pd
+from dotenv import load_dotenv
 from mauribooks import BookClient, BookConfig
 
-output_dir = Path(__file__).resolve().parents[1] / "output"
-output_dir.mkdir(exist_ok=True)
+from utils.logger import get_logger
 
-# --- Init SDK ---
-config = BookConfig(book_base_url="https://books-project-api.onrender.com")
-client = BookClient(config=config)
+load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=True)
 
-# --- Fonction pour récupérer toutes les données avec pagination ---
-def fetch_all_books(batch_size=1000):
-    all_books = []
+logger = get_logger(__name__)
+API_BASE_URL = os.getenv("BOOKS_API_URL", "https://books-project-api.onrender.com")
+BATCH_SIZE = int(os.getenv("BATCH_SIZE", "1000"))
+OUTPUT_DIR = Path(__file__).resolve().parents[1] / "output"
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+
+def fetch_paginated_data(
+    client_method: Callable[..., pd.DataFrame],
+    item_name: str,
+    batch_size: int = BATCH_SIZE,
+) -> pd.DataFrame:
+    """Recupere toutes les pages d'un endpoint MauriBooks."""
+    all_data: list[pd.DataFrame] = []
     skip = 0
-    while True:
-        batch = client.list_books(skip=skip, limit=batch_size, output_format="pandas")
-        if batch.empty:
-            break
-        all_books.append(batch)
-        skip += batch_size
-        print(f"Récupéré {skip} livres...")
-    return pd.concat(all_books, ignore_index=True) if all_books else pd.DataFrame()
 
-def fetch_all_ratings(batch_size=1000):
-    all_ratings = []
-    skip = 0
-    while True:
-        batch = client.list_ratings(skip=skip, limit=batch_size, output_format="pandas")
-        if batch.empty:
-            break
-        all_ratings.append(batch)
-        skip += batch_size
-        print(f"Récupéré {skip} évaluations...")
-    return pd.concat(all_ratings, ignore_index=True) if all_ratings else pd.DataFrame()
+    try:
+        while True:
+            batch = client_method(skip=skip, limit=batch_size, output_format="pandas")
+            if batch.empty:
+                break
 
-def fetch_all_tags(batch_size=1000):
-    all_tags = []
-    skip = 0
-    while True:
-        batch = client.list_tags(skip=skip, limit=batch_size, output_format="pandas")
-        if batch.empty:
-            break
-        all_tags.append(batch)
-        skip += batch_size
-        print(f"Récupéré {skip} tags...")
-    return pd.concat(all_tags, ignore_index=True) if all_tags else pd.DataFrame()
+            all_data.append(batch)
+            skip += batch_size
+            logger.info("Recupere %s %s...", skip, item_name)
 
-def fetch_all_book_tags(batch_size=1000):
-    all_book_tags = []
-    skip = 0
-    while True:
-        batch = client.list_book_tags(skip=skip, limit=batch_size, output_format="pandas")
-        if batch.empty:
-            break
-        all_book_tags.append(batch)
-        skip += batch_size
-        print(f"Récupéré {skip} book_tags...")
-    return pd.concat(all_book_tags, ignore_index=True) if all_book_tags else pd.DataFrame()
+        result = pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame()
+        logger.info("Total %s : %s lignes", item_name, len(result))
+        return result
+    except Exception:
+        logger.exception("Erreur lors de la recuperation de %s", item_name)
+        return pd.DataFrame()
 
 
-# --- Récupération des données ---
-print("Récupération des livres...")
-books_df = fetch_all_books()
-books_df.to_parquet(output_dir / "books.parquet", index=False)
+def save_parquet(df: pd.DataFrame, filename: str) -> None:
+    """Sauvegarde un DataFrame non vide au format parquet."""
+    if df.empty:
+        logger.warning("%s non sauvegarde : aucune donnee recue", filename)
+        return
 
-print("Récupération des évaluations...")
-ratings_df = fetch_all_ratings()
-ratings_df.to_parquet(output_dir / "ratings.parquet", index=False)
+    path = OUTPUT_DIR / filename
+    df.to_parquet(path, index=False)
+    logger.info("%s sauvegarde (%s lignes)", filename, len(df))
 
-print("Récupération des tags...")
-tags_df = fetch_all_tags()
-tags_df.to_parquet(output_dir / "tags.parquet", index=False)
 
-print("Récupération des book_tags...")
-book_tags_df = fetch_all_book_tags()
-book_tags_df.to_parquet(output_dir / "book_tags.parquet", index=False)
+def main() -> None:
+    """Recupere et sauvegarde les datasets utilises par l'application."""
+    logger.info("Connexion a l'API : %s", API_BASE_URL)
+    config = BookConfig(book_base_url=API_BASE_URL)
+    client = BookClient(config=config)
 
-print("Toutes les données ont été sauvegardées dans 'output/'")
+    datasets = {
+        "books.parquet": (client.list_books, "livres"),
+        "ratings.parquet": (client.list_ratings, "evaluations"),
+        "tags.parquet": (client.list_tags, "tags"),
+        "book_tags.parquet": (client.list_book_tags, "book_tags"),
+    }
+
+    for filename, (client_method, item_name) in datasets.items():
+        logger.info("Recuperation des %s...", item_name)
+        data = fetch_paginated_data(client_method, item_name)
+        save_parquet(data, filename)
+
+    logger.info("Preparation des donnees terminee")
+
+
+if __name__ == "__main__":
+    main()
