@@ -205,3 +205,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Project data and local secrets
+.env.local
+output/
+*.parquet
+streamlit_app/.streamlit/secrets.toml
+.DS_Store
+.vscode/
+.idea/
